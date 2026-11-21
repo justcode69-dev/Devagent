@@ -29,7 +29,10 @@ def default_models() -> list[BaseChatModel]:
         from langchain_groq import ChatGroq
         for name in _names(s.groq_model):
             models.append(ChatGroq(model=name, api_key=s.groq_api_key.get_secret_value(),
-                                   temperature=0, max_retries=2))
+                                   temperature=0, max_retries=2,
+                                   # Groq counts max_tokens against the per-minute token
+                                   # limit, so a huge default reservation alone can 413.
+                                   max_tokens=s.groq_max_tokens))
     if not models:
         raise RuntimeError("Set GOOGLE_API_KEY and/or GROQ_API_KEY in .env")
     return models

@@ -10,9 +10,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     google_api_key: SecretStr | None = None
-    gemini_model: str = "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash"
+    gemini_model: str = "gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite"
     groq_api_key: SecretStr | None = None
-    groq_model: str = "openai/gpt-oss-120b,qwen/qwen3.8-27b"
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_max_tokens: int = 2048
 
     github_token: SecretStr | None = None
     github_api: str = "https://api.github.com"
@@ -24,6 +25,8 @@ class Settings(BaseSettings):
 
     max_iterations: int = 8
     max_file_lines: int = 400
+    # Max chars of tool results re-sent to the LLM per step (oldest results are trimmed first).
+    context_char_budget: int = 24_000
     max_index_file_bytes: int = 200_000
     max_index_files: int = 400
     data_dir: Path = Path("./data")

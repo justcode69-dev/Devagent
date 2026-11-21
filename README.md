@@ -137,7 +137,7 @@ The Streamlit UI also runs **standalone**: if `DEVAGENT_API` is unset and nothin
 - **Why Gemini + Groq?** Both have free tiers; `with_fallbacks` switches automatically on rate
   limits, so the project costs ₹0 to run. Gemini's free tier is only ~20 requests/day *per
   model*, so `GEMINI_MODEL` / `GROQ_MODEL` take comma-separated chains
-  (`gemini-3.8-flash → 3.6 → 3.5 → gpt-oss-120b → qwen3.8`); a 429 falls straight through
+  (`gemini-3.8-flash → 3.6 → 3.5 → 3.5-lite → 3.1-lite → gpt-oss-120b`); a 429 falls straight through
   to the next model. Groq models use JSON-schema structured output, because forced
   tool-choice breaks on reasoning models.
 

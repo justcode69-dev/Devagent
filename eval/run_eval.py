@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--no-index", action="store_true")
     ap.add_argument("--pause", type=float, default=4.0, help="seconds between tasks (rate limits)")
+    ap.add_argument("--retry-wait", type=float, default=65.0,
+                    help="seconds to wait before retrying a task that hit a rate limit")
     a = ap.parse_args()
 
     spec = yaml.safe_load((HERE / "tasks.yaml").read_text())
@@ -64,22 +66,36 @@ def main():
 
     results = []
     for t in tasks:
-        try:
-            r = run_task(graph, t)
-        except Exception as e:
-            r = {"id": t["id"], "passed": False, "tool_calls": 0, "iterations": 0,
-                 "seconds": 0, "guard": False, "answer": f"ERROR {type(e).__name__}: {e}"[:300]}
+        for attempt in range(2):
+            try:
+                r = run_task(graph, t)
+                break
+            except Exception as e:
+                msg = f"ERROR {type(e).__name__}: {e}"
+                r = {"id": t["id"], "passed": False, "tool_calls": 0, "iterations": 0,
+                     "seconds": 0, "guard": False, "error": True, "answer": msg[:300]}
+                if attempt == 0 and ("429" in msg or "rate limit" in msg.lower()):
+                    print(f"  rate limited on {t['id']}, retrying in {a.retry_wait:.0f}s", flush=True)
+                    time.sleep(a.retry_wait)
+                    continue
+                break
         results.append(r)
-        print(f"{'PASS' if r['passed'] else 'FAIL'} {r['id']:<16} calls={r['tool_calls']:<3} {r['seconds']}s")
+        status = "PASS" if r["passed"] else ("ERROR" if r.get("error") else "FAIL")
+        print(f"{status:<5} {r['id']:<16} calls={r['tool_calls']:<3} {r['seconds']}s", flush=True)
         time.sleep(a.pause)
 
     n, ok = len(results), sum(r["passed"] for r in results)
-    avg = lambda k: round(sum(r[k] for r in results) / max(n, 1), 1)
+    errs = sum(bool(r.get("error")) for r in results)
+    ran = [r for r in results if not r.get("error")]
+    avg = lambda k: round(sum(r[k] for r in ran) / max(len(ran), 1), 1)
     (HERE / "results.json").write_text(json.dumps(results, indent=2))
+    err_note = f" ({errs} not run: LLM quota/rate-limit errors)" if errs else ""
     lines = [f"# DevAgent eval — {ctx.slug}", "",
-             f"**{ok}/{n} tasks completed** · avg {avg('tool_calls')} tool calls · avg {avg('seconds')}s per task", "",
+             f"**{ok}/{n} tasks completed**{err_note} · avg {avg('tool_calls')} tool calls · "
+             f"avg {avg('seconds')}s per task", "",
              "| Task | Result | Tool calls | Iterations | Time (s) |", "|---|---|---|---|---|"]
-    lines += [f"| {r['id']} | {'✅' if r['passed'] else '❌'}{' (guard)' if r['guard'] else ''} | "
+    lines += [f"| {r['id']} | {'✅' if r['passed'] else ('⚠️ error' if r.get('error') else '❌')}"
+              f"{' (guard)' if r['guard'] else ''} | "
               f"{r['tool_calls']} | {r['iterations']} | {r['seconds']} |" for r in results]
     (HERE / "results.md").write_text("\n".join(lines) + "\n")
     print("\n" + "\n".join(lines[:3]))

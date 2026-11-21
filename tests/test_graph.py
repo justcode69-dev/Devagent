@@ -114,3 +114,16 @@ def test_tool_output_redacts_token(ctx, make_llm, saver, monkeypatch):
         structured=[Plan(steps=["read"]), Reflection(complete=True, grounded=True)])
     out = _graph(ctx, llm, saver).invoke({"task": "read"}, CFG)
     assert all("ghp_LEAKME123" not in str(m.content) for m in out["messages"])
+
+
+def test_compact_messages_trims_oldest_tool_results_only():
+    from langchain_core.messages import HumanMessage
+    from app.graph.nodes import compact_messages
+    msgs = [HumanMessage("task"),
+            ToolMessage("a" * 5000, tool_call_id="1"),
+            ToolMessage("b" * 5000, tool_call_id="2")]
+    out = compact_messages(msgs, budget=6000)
+    assert "trimmed" in out[1].content and len(out[1].content) < 1000
+    assert out[2].content == "b" * 5000            # newest result untouched
+    assert msgs[1].content == "a" * 5000           # state not mutated
+    assert compact_messages(msgs, budget=20000) is msgs

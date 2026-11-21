@@ -39,11 +39,38 @@ def _files_from_calls(calls) -> list[str]:
     return [c["args"].get("path", "") for c in calls if c["name"] == "read_file" and c["args"].get("path")]
 
 
+def compact_messages(messages: list, budget: int) -> list:
+    """Copy of `messages` whose tool results fit in `budget` chars, shrinking the OLDEST first.
+
+    Free tiers limit tokens per minute/day, and every agent step re-sends the whole history.
+    The newest results stay intact; older ones keep their head plus a note to re-read.
+    State is not modified: the checkpoint keeps full results.
+    """
+    tool_idx = [i for i, m in enumerate(messages) if isinstance(m, ToolMessage)]
+    total = sum(len(text_of(messages[i])) for i in tool_idx)
+    if total <= budget:
+        return messages
+    out = list(messages)
+    for i in tool_idx:  # oldest first
+        if total <= budget:
+            break
+        body = text_of(out[i])
+        keep = 600
+        if len(body) <= keep + 200:
+            continue
+        short = (body[:keep] + f"\n[... {len(body) - keep} chars trimmed to save tokens; "
+                 "call the tool again if you need this part ...]")
+        total -= len(body) - len(short)
+        out[i] = out[i].model_copy(update={"content": short})
+    return out
+
+
 class Nodes:
     def __init__(self, llm: LLM, ctx: RepoContext, read_tools: list[BaseTool],
                  write_tools: list[BaseTool]):
         self.ctx = ctx
         self.max_iter = get_settings().max_iterations
+        self.context_budget = get_settings().context_char_budget
         self.read_map = {t.name: t for t in read_tools}
         self.write_map = {t.name: t for t in write_tools}
         self.agent_llm = llm.with_tools(read_tools + write_tools)
@@ -76,7 +103,7 @@ class Nodes:
             return {"stopped_by_guard": True, "final_answer":
                     (partial or "I could not finish within the step limit.") +
                     f"\n\n_[Stopped by loop guard after {it} iterations; answer may be partial.]_"}
-        msg = self.agent_llm.invoke(state["messages"])
+        msg = self.agent_llm.invoke(compact_messages(state["messages"], self.context_budget))
         update: dict = {"messages": [msg], "iterations": it + 1}
         writes = [c for c in (msg.tool_calls or []) if c["name"] in WRITE_TOOLS]
         if writes:
