@@ -1,0 +1,9 @@
+*.egg-info/
+*.pyc
+.env
+.pytest_cache/
+.streamlit/secrets.toml
+.venv/
+__pycache__/
+data/
+eval/results.json
