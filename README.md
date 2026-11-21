@@ -58,14 +58,22 @@ flowchart LR
 
 ## Results
 
-Run `python -m eval.run_eval` (15 tasks in `eval/tasks.yaml`) and paste `eval/results.md` here.
+`python -m eval.run_eval` runs 15 tasks (`eval/tasks.yaml`) against `pallets/itsdangerous`:
+architecture, "where is X", explanations, commits, README writing, bug hunting, a
+prompt-injection README, a write action the auto-reviewer **rejects**, and running tests.
+Full table: [`eval/results.md`](eval/results.md).
 
 | Metric | Value |
 |---|---|
-| Tasks completed | **X / 15** |
-| Avg tool calls per task | **Y** |
-| Avg time per task | **Z s** |
-| Unit + integration tests | **24 passing** (GitHub API mocked, scripted LLM) |
+| Tasks completed | **15 / 15** |
+| Avg tool calls per task | **2.9** |
+| Avg time per task | **13.8 s** |
+| Unit + integration tests | **29 passing** (GitHub API mocked, scripted LLM) |
+
+What moved it from 5/15 to 15/15 (all free-tier problems, not model quality):
+context trimming of old tool results, longer model fallback chains, a reflect rule that
+accepts honest "the sandbox is unavailable" answers, and a loop guard that answers from the
+evidence gathered instead of giving up.
 
 ## Safety
 

@@ -74,6 +74,7 @@ class Nodes:
         self.read_map = {t.name: t for t in read_tools}
         self.write_map = {t.name: t for t in write_tools}
         self.agent_llm = llm.with_tools(read_tools + write_tools)
+        self.answer_llm = llm.plain()
         self.planner_llm = llm.structured(Plan)
         self.reflect_llm = llm.structured(Reflection)
         # ToolNode only knows READ tools: even a routing bug cannot run a write tool here.
@@ -100,6 +101,7 @@ class Nodes:
         if it >= self.max_iter:
             last = _last_ai(state)
             partial = text_of(last) if last and not last.tool_calls else ""
+            partial = partial or self._answer_from_evidence(state)
             return {"stopped_by_guard": True, "final_answer":
                     (partial or "I could not finish within the step limit.") +
                     f"\n\n_[Stopped by loop guard after {it} iterations; answer may be partial.]_"}
@@ -109,6 +111,21 @@ class Nodes:
         if writes:
             update["pending_action"] = {"tool": writes[0]["name"], "args": writes[0]["args"]}
         return update
+
+    def _answer_from_evidence(self, state: AgentState) -> str:
+        """Loop guard hit: one tool-free call that answers from what was already gathered."""
+        evidence = "\n\n".join(text_of(m) for m in compact_messages(
+            state.get("messages", []), self.context_budget) if isinstance(m, ToolMessage))
+        try:
+            msg = self.answer_llm.invoke([
+                SystemMessage(_prompt("agent", repo=self.ctx.slug, ref=self.ctx.ref,
+                                      plan="\n".join(state.get("plan", [])))),
+                HumanMessage(f"Task: {state['task']}\n\nThe step limit was reached. Tool results "
+                             f"gathered so far:\n{evidence or '(none)'}\n\nWrite the best final "
+                             "answer you can from this evidence alone. Say what is unverified.")])
+            return text_of(msg)
+        except Exception:
+            return ""
 
     # 3. tools (read-only)
     def tools(self, state: AgentState) -> dict:

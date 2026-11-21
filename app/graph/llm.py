@@ -56,6 +56,9 @@ class LLM:
         head, *rest = runnables
         return head.with_fallbacks(rest) if rest else head
 
+    def plain(self):
+        return self._chain(list(self.models))
+
     def with_tools(self, tools):
         return self._chain([m.bind_tools(tools) for m in self.models])
 

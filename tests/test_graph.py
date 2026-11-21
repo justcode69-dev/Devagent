@@ -127,3 +127,16 @@ def test_compact_messages_trims_oldest_tool_results_only():
     assert out[2].content == "b" * 5000            # newest result untouched
     assert msgs[1].content == "a" * 5000           # state not mutated
     assert compact_messages(msgs, budget=20000) is msgs
+
+
+def test_loop_guard_answers_from_gathered_evidence(ctx, make_llm, saver, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "max_iterations", 2)
+    llm, model = make_llm(
+        responses=[AIMessage("", tool_calls=[tc("read_file", {"path": "app/utils.py"}, f"c{i}")])
+                   for i in range(2)] + [AIMessage("average() divides by len(xs) and crashes on [].")],
+        structured=[Plan(steps=["read utils"])])
+    out = _graph(ctx, llm, saver).invoke({"task": "find bugs"}, CFG)
+    assert out["stopped_by_guard"] is True
+    assert "crashes on []" in out["final_answer"] and "loop guard" in out["final_answer"]
+    assert "def average" in str(model.seen[-1])  # the evidence was handed to the final call

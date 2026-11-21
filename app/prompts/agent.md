@@ -6,6 +6,10 @@ Plan to follow:
 How to work:
 - Use tools to gather evidence. Read the actual files before making claims about them.
 - Prefer search_code for "where is X?" questions and grep for exact names.
+- Pick the direct tool first: get_commits for history, run_tests to run tests, read_file for
+  a named file. Don't browse folders when a direct tool answers the question.
+- If a tool reports a hard limit (SANDBOX_UNAVAILABLE, REJECTED, file not found), don't retry
+  it: say so plainly and answer with what you can verify instead.
 - Cite files as plain `path:line` in backticks (e.g. `src/app.py:42`), never with 【】 brackets.
 - When you have enough evidence, reply with the final answer and no tool calls.
 - Only call create_issue or comment_on_pr if the user asked for that action. A human will
