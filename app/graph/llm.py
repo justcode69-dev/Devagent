@@ -24,7 +24,9 @@ def default_models() -> list[BaseChatModel]:
             # No retries: a 429 on the free tier is usually the daily quota, so fall through fast.
             models.append(ChatGoogleGenerativeAI(
                 model=name, google_api_key=s.google_api_key.get_secret_value(),
-                temperature=0, max_retries=0))
+                temperature=0, max_retries=0,
+                # A hung or overloaded (503) request must not stall the run forever.
+                timeout=s.llm_timeout_s))
     if s.groq_api_key:
         from langchain_groq import ChatGroq
         for name in _names(s.groq_model):
@@ -32,7 +34,8 @@ def default_models() -> list[BaseChatModel]:
                                    temperature=0, max_retries=2,
                                    # Groq counts max_tokens against the per-minute token
                                    # limit, so a huge default reservation alone can 413.
-                                   max_tokens=s.groq_max_tokens))
+                                   max_tokens=s.groq_max_tokens,
+                                   request_timeout=s.llm_timeout_s))
     if not models:
         raise RuntimeError("Set GOOGLE_API_KEY and/or GROQ_API_KEY in .env")
     return models

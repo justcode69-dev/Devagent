@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     groq_api_key: SecretStr | None = None
     groq_model: str = "openai/gpt-oss-120b"
     groq_max_tokens: int = 2048
+    llm_timeout_s: float = 60.0  # per request; on timeout the next model in the chain is tried
 
     github_token: SecretStr | None = None
     github_api: str = "https://api.github.com"
